@@ -8,7 +8,7 @@
  * @TODO: Audio functions, clean up, more documentations, refactor, optimize, and maybe utilize, fix resize, activate once on keypress
  * Maybe change to request anim frame. Zoom is towards 0,0. UI stuff
  * Uses an immediately invoked anonymous function call to isolate any variables that are left loose
- * @TODO: Add a slower rendered canvas underneath to allow better performance
+ * @TODO Add a slower rendered canvas underneath to allow better performance
  */
 const GameKit = (function(){
     const GameKit = {};
@@ -135,8 +135,9 @@ const GameKit = (function(){
                     (e.pageX-GameKit.canvas.offsetLeft),
                     (e.pageY-GameKit.canvas.offsetTop)
                 );
-                GameKit.mouse.x = actual.x // / GameKit.camera.zoom;    
-                GameKit.mouse.y = actual.y // / GameKit.camera.zoom;
+                GameKit.mouse.x = actual.x  // / GameKit.camera.zoom;    
+                GameKit.mouse.y = actual.y  // / GameKit.camera.zoom;
+                //GameKit.mouse.position = GameKit.pos(0,0)
                 //GameKit.mouse.x = (e.pageX-GameKit.canvas.offsetLeft - GameKit.canvas.width/2 + GameKit.camera.x)*scalar;
                 //GameKit.mouse.y = (e.pageY-GameKit.canvas.offsetTop - GameKit.canvas.height/2 + GameKit.camera.y)*scalar;
             }
@@ -188,10 +189,10 @@ const GameKit = (function(){
         return GameKit.canvas;
     }
     GameKit.resizeCanvas = throttle(()=>{
-        GameKit.canvas.width = (window.innerWidth-GameKit.canvas.clientLeft)*0.9;
-        GameKit.slowCanvas.width = (window.innerWidth-GameKit.slowCanvas.clientLeft)*0.9;
-        GameKit.canvas.height = (window.innerHeight-GameKit.canvas.clientTop)*0.9;
-        GameKit.slowCanvas.height = (window.innerHeight-GameKit.slowCanvas.clientTop)*0.9;
+        //GameKit.canvas.width = (window.innerWidth-GameKit.canvas.clientLeft)*0.9;
+        //GameKit.slowCanvas.width = (window.innerWidth-GameKit.slowCanvas.clientLeft)*0.9;
+        //GameKit.canvas.height = (window.innerHeight-GameKit.canvas.clientTop)*0.9;
+        //GameKit.slowCanvas.height = (window.innerHeight-GameKit.slowCanvas.clientTop)*0.9;
         /////////////////////////////////////////////
         [GameKit.canvas,GameKit.slowCanvas].forEach(c=>{
             c.width = window.innerWidth - c.clientLeft;
@@ -270,7 +271,9 @@ const GameKit = (function(){
             if(GameKit.options.autoTrackNewEnts && !doNotAdd){
                 this.track();
             }
-            this.slowRender = false; ///////
+            /**Tells if this should be rendered slowly, aka only 
+             * updated a small percentage of the time or on demand */
+            this.slowRender = false; 
         }
         options = {
             hidden:false,
@@ -300,7 +303,8 @@ const GameKit = (function(){
         }
         /**Position relative to the top right corner of the screen */
         get relativePosition(){
-            return GameKit.pos(GameKit.canvas.width/2 - GameKit.camera.x + this.x, GameKit.canvas.height/2 - GameKit.camera.y + this.y);
+            return GameKit.pos(GameKit.canvas.width/2 - GameKit.camera.x + this.x,
+                                GameKit.canvas.height/2 - GameKit.camera.y + this.y);
         }
         /**Called each tick */
         move(){}
@@ -342,6 +346,7 @@ const GameKit = (function(){
             } else if(this.options.drawStyle == GameKit.RectEnt.drawStyles.DRAW_ROTATED) {
                 //I could also get the positions of the corners when rotated and path them out individually
                 //When Rotated
+                
                 var fhw = Math.floor(this.width/2),
                     fhh = Math.floor(this.height/2);
                 c.save();
@@ -365,6 +370,24 @@ const GameKit = (function(){
                     }
                 }
                 c.restore();
+                
+                /* //TODO think about doing this way
+                let dx = Math.floor(this.width/2*Math.cos(this.rotation.rad))
+                let dy = Math.floor(this.height/2*Math.sin(this.rotation.rad))
+
+                let pts = [
+                    [fx - dx,fy + dy],
+                    [fx + dx,fy + dy],
+                    [fx + dx,fy - dy]
+                ]
+                c.moveTo(fx - dx,fy - dy)
+                c.beginPath()
+                pts.forEach(p=>{
+                    c.lineTo(p[0],p[1])
+                })
+                c.stroke()
+                c.closePath()
+                */
             }
         }
         /**Gets the corners for when options.drawStyle is DRAW_ROTATED */
@@ -570,10 +593,16 @@ const GameKit = (function(){
         }
         /**@param {number|{x:number,y:number}} x @param {number} [y] */
         containsPoint(x ={x:0,y:0},y){
+            
+
             if(typeof x == 'number'){
                 x = {x:x,y:y}
             }
-            
+            if(this.options.drawStyle === GameKit.RectEnt.drawStyles.DRAW_STATIC) {
+               return (x.x >= this.x - this.width/2) && (x.x <= this.x + this.width/2)
+                    && (x.y >= this.y - this.height/2) && (x.y <= this.y + this.height/2)
+            }
+
             function isLeft(P0,P1,P2){
                 return -( (P1.x - P0.x) * (P2.y - P0.y) - (P2.x - P0.x) * (P1.y - P0.y) );
             }
@@ -614,11 +643,11 @@ const GameKit = (function(){
         }
         /**
          * 
-         * @param {object} [obj] 
+         * @param {object} obj 
          * @param {number} [obj.x] @param {number} [obj.y] @param {number} [obj.height] @param {number} [obj.width] 
          * @param {number} [obj.rad] @param {number} [obj.deg] @param {number} [obj.forward]
          */
-        setChange({x, y, width, height, rad, deg, forward}){
+        setChange({x, y, width, height, rad, deg, forward}={}){
             if(x)
                 this.change.x = x;
             if(y)  
@@ -846,7 +875,7 @@ const GameKit = (function(){
      * @param {number} x 
      * @param {number} y 
      */
-    GameKit.pos = function(x,y){return {x:x,y:y}}
+    GameKit.pos = function(x,y){return {x:x,y:y,toString:function(){return `{${this.x},${this.y}}`}}}
     /**Simple x and y obj with dot and move functionality */
     GameKit.vec2=function(/** @type {number} */ x,/** @type {number} */ y) {
         return {
@@ -1703,6 +1732,10 @@ const GameKit = (function(){
                     GameKit.pos(topLeft.x,topLeft.y)
                 ]
             }
+            /**
+             * TODO Make work for rotation lock
+             * @returns
+             */
             hasMouseHover(){
                 //Works for corners, but not cardinals
                 if(!this.activeCollision){

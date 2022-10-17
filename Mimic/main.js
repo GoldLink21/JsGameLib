@@ -117,11 +117,11 @@ class Tile {
                 break;
         }
     }
-    isEmpty(){return this.status == 0;}
-    isP1(){return this.status == 1;}
-    isP2(){return this.status == 2;}
-    isBox(){return this.status == 3;}
-    isPit(){return this.status == 4;}
+    isEmpty() {return this.status == 0;}
+    isP1()    {return this.status == 1;}
+    isP2()    {return this.status == 2;}
+    isBox()   {return this.status == 3;}
+    isPit()   {return this.status == 4;}
 }
 
 //#endregion Tile

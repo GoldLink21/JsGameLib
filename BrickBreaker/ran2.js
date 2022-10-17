@@ -185,8 +185,9 @@ class Tile extends GameKit.RectEnt {
             this.color = 'gold'
             return;
         }
-        if(this.color != Tile.colors[Math.floor(this.hp) - 1]){
-            this.color = Tile.colors[Math.floor(this.hp) - 1]//.substr(0,Tile.colors[this.hp - 1].length);
+        let index = (Math.floor(this.hp) - 1) % Tile.colors.length
+        if(this.color != Tile.colors[index]){
+            this.color = Tile.colors[index]//.substr(0,Tile.colors[this.hp - 1].length);
         }
     }
 }

@@ -15,7 +15,8 @@ var c = GameKit.Controls.pressed;
 //#region Controls
 GameKit.options.autoTrackKeys = true;
 var spd = 3
-GameKit.Controls.trackKeys('up','down','left','right', 'shift', 'space',"w","a","s","d","r","q","e","i","j","k","l","=","-",'0',"9");
+GameKit.Controls.trackKeys('up','down','left','right', 'shift',
+    'space',"w","a","s","d","r","q","e","i","j","k","l","=","-",'0',"9");
 
 function handleControls(){
     let v = g.vec2(0,0);
@@ -58,8 +59,10 @@ GameKit.Controls.addPressOnceEvent("r",()=>{
     else
         player.options.drawStyle = 1
 })
-GameKit.Controls.addPressOnceEvent  ("f",()=>new ParticleFire(GameKit.mouse.pos().x,GameKit.mouse.pos().y,100))
-GameKit.Controls.addUnpressOnceEvent("f",()=>new ParticleFire(GameKit.mouse.x,GameKit.mouse.y,100))
+GameKit.Controls.addPressOnceEvent  ("f",
+    ()=>new ParticleFire(GameKit.mouse.pos().x,GameKit.mouse.pos().y,100))
+GameKit.Controls.addUnpressOnceEvent("f",
+    ()=>new ParticleFire(GameKit.mouse.x,GameKit.mouse.y,100))
 
 
 var wasShoot = false;
@@ -92,7 +95,9 @@ help.style.position = 'absolute';
 help.style.zIndex = '5';
 setInterval(()=>{
     help.innerHTML = `Mouse: ${g.mouse.down}, (${g.mouse.x},${g.mouse.y})<br>
-    ${player.relativePosition.x},${player.relativePosition.y} || ${player.x},${player.y}`
+    ${player.relativePosition.x},${player.relativePosition.y} || ${player.x},${player.y}<br>
+    Mouse Hover ${player.hasMouseHover()}<br>
+    Zoom: ${GameKit.camera.zoom} at ${GameKit.camera.position.toString()}`
 },60)
 
 class ParticleFire extends g.Particle {
@@ -182,13 +187,25 @@ ps3.particlesPerSpawn = 3;
 
 //@todo fix camera zoom
 
+/**@type {{x:number,y:number}} */
+let clickOffset = undefined;
 
 GameKit.onTickFunctions.push(()=>{
     if(GameKit.mouse.down){
-        if(!ps.active){
-            ps.forever()
-        }
         
+        if(player.hasMouseHover() && clickOffset == undefined) {
+            clickOffset = GameKit.pos(
+                player.x - GameKit.mouse.x,
+                player.y - GameKit.mouse.y
+            )
+        }
+        if(clickOffset!==undefined) {
+            player.position = GameKit.vec2().from(GameKit.mouse.position).add(clickOffset)
+        } else {
+            if(!ps.active){
+                ps.forever()
+            }
+        }
         //if(t.hasMouseHover())
         //    t.onClick();
         //ps3.active = false;
@@ -196,6 +213,9 @@ GameKit.onTickFunctions.push(()=>{
         ps.active = false;
         //if(!ps3.active)
         //    ps3.forever()
+        if(clickOffset !== undefined){
+            clickOffset = undefined;
+        }
     }
     player.pointAt(g.mouse.x,g.mouse.y)
     handleControls()
@@ -215,7 +235,9 @@ class Torch extends GameKit.RectEnt{
         return this.height <= this.minHeight;
     }
     onTick(){
-        if(GameKit.mouse.down && !this.particles.active && this.hasMouseHover()){
+        if(GameKit.mouse.down && !this.particles.active 
+            && this.hasMouseHover() && clickOffset === undefined)
+        {
             this.particles.start()
             this.particles.particlesToSpawn = 15;
         }
@@ -284,12 +306,13 @@ class ScreenFade extends g.Particle {
 
 player.drawLayer = 1;
 let whoah = 8;
-for(let i = 0; i < whoah; i++){
+for(let i = -whoah; i < whoah; i++){
     let s = 50;
-    for(let j = 0; j < whoah; j++){
+    for(let j = -whoah; j < whoah; j++){
         var en = new GameKit.RectEnt(i*s+s*.75, j*s+s*.75, s, s, GameKit.Rnd.color()).track()
         en.drawLayer = 0;
-        en.options.drawStyle = 1;
+        en.options.drawStyle = 0;
+        en.pointAt(0,0)
     }
 }
 
@@ -326,3 +349,4 @@ var center = new class extends GameKit.RectEnt{
         // this.y = GameKit.canvas.height/2 + GameKit.camera.y;
     }
 }
+
