@@ -6,31 +6,73 @@ This is code used in testing many features
 
 */
 
-var g = GameKit;
+import * as GameKit from "./gameKit-2.js";
 GameKit.makeCanvas();
-var player = new g.RectEnt(g.canvas.width/2,g.canvas.height/2, 21,41, 'red').track().
+
+let { 
+    RectEnt, canvas, options, Controls, vec2,
+    camera, Counter, Particle, Rnd, mouse, 
+    ParticleSystem, pos, deltaTime, Angle
+} = GameKit
+
+addEventListener(GameKit.EventNames.click, event=>{
+    // @ts-ignore
+    let x = event.detail.x;
+    // @ts-ignore
+    let y = event.detail.y;
+    console.log(x, y)
+})
+
+options.imageDirectory = "../img/"
+options.defaultImageFileType = ".png"
+
+var player = new RectEnt(0,0, 21,41, 'royalblue').track().
     setImage('end')
-var o = new g.RectEnt(200,250,20,40,'green').track()
-var c = GameKit.Controls.pressed;
+
+player.drawLayer = 1;
+
+var o = new RectEnt(200,250,20,40,'green').track()
+var c = Controls.pressed;
 //#region Controls
-GameKit.options.autoTrackKeys = true;
-var spd = 3
-GameKit.Controls.trackKeys('up','down','left','right', 'shift',
-    'space',"w","a","s","d","r","q","e","i","j","k","l","=","-",'0',"9");
+// options.autoTrackKeys = true;
+// var spd = 3
+Controls.trackKeys('up','down','left','right', 'shift',
+    'space',"w","a","s","d","r","q","e","i","j","k","l","=","-",'0',"9", "f");
+
+let cameraNext = {x:camera.x,y:camera.y};
+let cameraLerpSpeed = 10;
+let curCameraStep = 0;
+
+function cameraMove(x,y, speed = 10){
+    cameraNext.x += x;
+    cameraNext.y += y;
+    curCameraStep = 2;
+    cameraLerpSpeed = speed;
+    // if(curCameraStep === cameraLerpSpeed)
+    // else 
+        // curCameraStep = cameraLerpSpeed/20
+        //curCameraStep = Math.max(CAMERA_LERP_MAX/10,curCameraStep - 4);
+}
+
+function cameraMoveTo(x, y, speed = 10){
+    // curCameraStep = Math.max(1,curCameraStep - 2);
+    cameraNext.x = x;
+    cameraNext.y = y;
+    cameraLerpSpeed = speed + 2;
+    curCameraStep = 2;
+}
 
 function handleControls(){
-    let v = g.vec2(0,0);
+    let v = vec2(0,0);
     let speed = 5;
     if(c['w']) v.add(0,-1)
     if(c["a"]) v.add(-1,0)
     if(c["s"]) v.add(0,1)
     if(c["d"]) v.add(1,0)
-    //v = v.scaled(5);
-    v.normalize().setLength(speed);
-    //console.log(v);
+    v.scale(speed);
     player.x += v.x;
     player.y += v.y;
-    if(c["q"]) player.moveForward(speed);
+    if(c["q"] && Math.hypot(player.x - mouse.x, player.y - mouse.y) > player.width) player.moveForward(speed);
 
     //if(c['r']) player.rotation.deg+=5;
     
@@ -42,74 +84,128 @@ function handleControls(){
             wasShoot = true;
         }
     }
-    let scale = 20
-    if(c['up']) g.camera.y-=scale*g.camera.zoom;
-    if(c['down']) g.camera.y+=scale*g.camera.zoom;
-    if(c['left']) g.camera.x-=scale*g.camera.zoom;
-    if(c['right']) g.camera.x+=scale*g.camera.zoom;
-    if(c["="]) g.camera.zoom += g.camera.zoom/20;
-    if(c["-"]) g.camera.zoom -= g.camera.zoom/20;
-    if(c['0']) g.camera.zoom = 1;
-    if(c['9']) g.camera.position = GameKit.pos(0,0);
+    const scale = 20
+   
+    if(c['up'])     cameraMove(0,-scale*camera.zoom);
+    if(c['down'])   cameraMove(0,scale*camera.zoom);
+    if(c['left'])   cameraMove(-scale*camera.zoom, 0);
+    if(c['right'])  cameraMove(scale*camera.zoom,0);
+
+
+    if(c["="]) camera.zoom = GameKit.Util.clamp(camera.zoom + camera.zoom/scale, 0.5, 5);
+    if(c["-"]) camera.zoom = GameKit.Util.clamp(camera.zoom - camera.zoom/scale, 0.5, 5);
+    if(c['0']) camera.zoom = 1;
 }
+Controls.addPressOnceEvent("9",()=>cameraMoveTo(0,0, 100))
+
+// Handle camera lerping
+addEventListener(GameKit.EventNames.tick, ()=>{
+    if(curCameraStep < cameraLerpSpeed) {
+        camera.position = GameKit.Util.lerp2D(camera.position, cameraNext, (curCameraStep/cameraLerpSpeed));
+        curCameraStep++;
+    }
+
+    // Handle keeping player on screen
+    let prp = player.relativePosition;
+    const MOVE_AMOUNT = 20 / camera.zoom;
+    const OUTER_RANGE = 0.05;
+    const MOVE_SPEED = 60
+    if(prp.x < GameKit.canvas.width * OUTER_RANGE) {
+        cameraMove(-MOVE_AMOUNT, 0, MOVE_SPEED);
+        // cameraMoveTo(player.x,player.y)
+    } else if(prp.x > GameKit.canvas.width * (1 - OUTER_RANGE)) {
+        // cameraMoveTo(player.x,player.y)
+        cameraMove(MOVE_AMOUNT,0, MOVE_SPEED)
+    }
+    
+    if(prp.y < GameKit.canvas.height * OUTER_RANGE) {
+        cameraMove(0, -MOVE_AMOUNT, MOVE_SPEED);
+        // cameraMoveTo(player.x,player.y)
+    } else if(prp.y > GameKit.canvas.height * (1 - OUTER_RANGE)) {
+        cameraMove(0, MOVE_AMOUNT, MOVE_SPEED);
+        // cameraMoveTo(player.x,player.y)
+    }
+
+    //if()
+})
+
+
+Controls.addPressOnceEvent("j",()=>{
+    cameraMove(-500,0);
+})
+
+Controls.addPressOnceEvent("k",()=>{
+    cameraMove(500,0);
+})
+
 //Rotation style
-GameKit.Controls.addPressOnceEvent("r",()=>{
+Controls.addPressOnceEvent("r",()=>{
+    console.log("R")
     if(player.options.drawStyle == 1)
         player.options.drawStyle = 0
     else
         player.options.drawStyle = 1
 })
-GameKit.Controls.addPressOnceEvent  ("f",
-    ()=>new ParticleFire(GameKit.mouse.pos().x,GameKit.mouse.pos().y,100))
-GameKit.Controls.addUnpressOnceEvent("f",
-    ()=>new ParticleFire(GameKit.mouse.x,GameKit.mouse.y,100))
+Controls.addPressOnceEvent  ("f",
+    ()=>{
+        console.log('F')
+        new ParticleFire(mouse.pos().x,mouse.pos().y,100)
+    })
+Controls.addUnpressOnceEvent("f",
+    ()=>new ParticleFire(mouse.x,mouse.y,100))
 
 
 var wasShoot = false;
-var shootCount = new g.Counter(5,()=>{
-    var p = new g.RectEnt(player.x,player.y,5,5,'white').track();
-    p.rotation.deg = player.rotation.deg + g.Rnd.intRange(-5,5);
+var shootCount = new Counter(5, ()=>{
+    var p = new RectEnt(player.x,player.y,5,5,'white').track();
+    p.rotation.deg = player.rotation.deg + Rnd.intRange(-5,5);
     // @ts-ignore
-    p.counter = new GameKit.Counter(200,()=>{
-        p.toRemove =true
-        new g.Particle(p.x,p.y,p.width*4,p.height * 4,"red",100,'black')
+    p.counter = new Counter(200, ()=>{
+        p.toRemove = true
+        new Particle(p.x,p.y,p.width*4,p.height * 4,"red",100,'black')
             .grow().setChange({deg:360, forward:1}).startRotation(0,360)
     });
     // @ts-ignore
-    p.speed = GameKit.Rnd.numRange(5,8);
+    p.speed = Rnd.numRange(5,8);
     p.move = function(){
         // @ts-ignore
         this.moveForward(this.speed);
         // @ts-ignore
         this.counter.count(this.speed);
+        if(p.collides(t)){
+            p.remove()
+            t.light(5);
+        }
     }
+    p.moveForward(player.width/2)
 })
 //#endregion Controls
 
 o.rotation.deg = 45;
 o.hide()
-player.rotation.deg = 45
 o.options.drawStyle = 1;
 var help=document.getElementById('help');
 help.style.position = 'absolute';
 help.style.zIndex = '5';
-setInterval(()=>{
-    help.innerHTML = `Mouse: ${g.mouse.down}, (${g.mouse.x},${g.mouse.y})<br>
-    ${player.relativePosition.x},${player.relativePosition.y} || ${player.x},${player.y}<br>
-    Mouse Hover ${player.hasMouseHover()}<br>
-    Zoom: ${GameKit.camera.zoom} at ${GameKit.camera.position.toString()}`
-},60)
+addEventListener(GameKit.EventNames.tick, ()=>{
 
-class ParticleFire extends g.Particle {
+    help.innerHTML = `Mouse: ${mouse.down}, (${pos().from(mouse).roundString()})<br>
+    Relative: ${Math.round(player.relativePosition.x)},${Math.round(player.relativePosition.y)} | Actual: ${Math.round(player.x)},${Math.round(player.y)}<br>
+    Mouse Hover ${player.hasMouseHover()}<br>
+    Zoom: ${Math.round(camera.zoom * 100)/100} at {${pos(camera.x,camera.y).roundString()}<br>    
+    `
+})
+
+class ParticleFire extends Particle {
     constructor(x, y, lifeSpan, scale = 1, hasSmoke = true) {
         super(x, y, 22 * scale, 22* scale, 'peru', lifeSpan)
         this.colorChoice('red','red','orange','yellow')
         this.shrink()
-        this.change.rotation.deg = GameKit.Rnd.intTo(-60);
+        this.change.rotation.deg = Rnd.intTo(-60);
         this.startRotation(-45,45);
-        this.change.forward = GameKit.Rnd.intTo(20);
-        this.change.y = GameKit.Rnd.intRange(-20,-100);
-        this.change.x = GameKit.Rnd.intRange(-20,20)
+        this.change.forward = Rnd.intTo(20);
+        this.change.y = Rnd.intRange(-20,-100);
+        this.change.x = Rnd.intRange(-20,20)
         
         this.startWidth = this.width;
         this.startHeight = this.height;
@@ -122,8 +218,8 @@ class ParticleFire extends g.Particle {
     }
 }
 
-class ParticleSmoke extends g.Particle {
-    constructor(x,y, lifeSpan = 3/GameKit.deltaTime) {
+class ParticleSmoke extends Particle {
+    constructor(x,y, lifeSpan = 3/deltaTime) {
         super(x,y,5,5,'gray',lifeSpan)
         this.startRotation(0,90)
     }
@@ -137,27 +233,20 @@ class ParticleSmoke extends g.Particle {
 }
 
 
-class ParticleSystem extends GameKit.ParticleSystem {}
-
-class ParticleSystemFire extends GameKit.ParticleSystem {
+class ParticleSystemFire extends ParticleSystem {
     constructor(x, y, lifeSpan, scale=1){
-        /*
-        super(x, y, 3, 2);
+        
+        super(x, y, 3, 0.25);
         this.addParticleType(()=>new ParticleFire(10,10,lifeSpan, scale))
         this.particlesPerSpawn = 3;
-        this.pattern.colors = ['red','red','orange','yellow']
-        */
-        super(x, y, 3, 0.2);
-        this.addParticleType(()=>new ParticleFire(10,10,lifeSpan, scale))
-        this.particlesPerSpawn = 2;
         this.pattern.colors = ['red','red','orange','yellow']
     }
 }
 
-var ps = new ParticleSystemFire(415, 275, 32,0.75).setParent(GameKit.mouse)
+var ps = new ParticleSystemFire(415, 275, 32,0.75).setParent(mouse)
 
 var ps2 = new ParticleSystem(100,100,7,3).addParticleType(
-    ()=>new GameKit.Particle(0,0,5,5,'red',10)
+    ()=>new Particle(0,0,5,5,'red',10)
     .setChange({forward:8,deg:10})).setParent(player).forever()
 ps2.pattern.followsPattern = true;
 ps2.pattern.colors = ['red','orange','yellow','green','blue','violet'];
@@ -170,9 +259,9 @@ ps2.particlesPerSpawn = 6
 
 var ps3 = new ParticleSystem(100,100,1,2)
     .addParticleType(()=>{
-        let  p = new ParticleSmoke(0,0,GameKit.Rnd.intRange(4,6))
-        .setChange({forward:GameKit.Rnd.intRange(4,5),
-            x:GameKit.Rnd.intRange(-4,3), y:-5, width:0.2, height:0.2});
+        let  p = new ParticleSmoke(0,0,Rnd.intRange(4,6))
+        .setChange({forward:Rnd.intRange(4,5),
+            x:Rnd.intRange(-4,3), y:-5, width:0.2, height:0.2});
         if(p.rotation.deg > 45) { // Right side
             p.change.rotation.deg = -4
         } else { //Left side
@@ -180,7 +269,7 @@ var ps3 = new ParticleSystem(100,100,1,2)
         }
         return p;
     })
-    .setParent(GameKit.mouse)
+    .setParent(mouse)
 
 ps3.particlesPerSpawn = 3;
 
@@ -190,17 +279,18 @@ ps3.particlesPerSpawn = 3;
 /**@type {{x:number,y:number}} */
 let clickOffset = undefined;
 
-GameKit.onTickFunctions.push(()=>{
-    if(GameKit.mouse.down){
+addEventListener(GameKit.EventNames.tick,()=>{
+    // Drag and drop stuff
+    if(mouse.down){
         
         if(player.hasMouseHover() && clickOffset == undefined) {
-            clickOffset = GameKit.pos(
-                player.x - GameKit.mouse.x,
-                player.y - GameKit.mouse.y
+            clickOffset = pos(
+                player.x - mouse.x,
+                player.y - mouse.y
             )
         }
         if(clickOffset!==undefined) {
-            player.position = GameKit.vec2().from(GameKit.mouse.position).add(clickOffset)
+            player.position = vec2().from(mouse.position).add(clickOffset)
         } else {
             if(!ps.active){
                 ps.forever()
@@ -217,11 +307,11 @@ GameKit.onTickFunctions.push(()=>{
             clickOffset = undefined;
         }
     }
-    player.pointAt(g.mouse.x,g.mouse.y)
+    player.pointAt(mouse.x,mouse.y)
     handleControls()
 })
 
-class Torch extends GameKit.RectEnt{
+class Torch extends RectEnt{
     constructor(x, y, burnRate = 0.5) {
         super(x, y, 10, 100, 'saddlebrown')
         this.burnRate = burnRate;
@@ -234,12 +324,15 @@ class Torch extends GameKit.RectEnt{
     burntOut(){
         return this.height <= this.minHeight;
     }
+    light(ticks){
+        this.particles.start()
+        this.particles.particlesToSpawn += ticks;
+    }
     onTick(){
-        if(GameKit.mouse.down && !this.particles.active 
+        if(mouse.down && !this.particles.active 
             && this.hasMouseHover() && clickOffset === undefined)
         {
-            this.particles.start()
-            this.particles.particlesToSpawn = 15;
+            this.light(15);
         }
         if(this.particles.active){
             if(this.height > this.minHeight) {
@@ -253,7 +346,7 @@ class Torch extends GameKit.RectEnt{
         }
     }
 }
-var t = new Torch(100,200,1)
+var t = new Torch(100,200,0.25)
 
 ps2.stop()
 o.show()
@@ -261,14 +354,9 @@ o.rotation.rad = 0;
 player.rotation.rad = 0
 o.options.drawStyle=1
 
-//Cursor
-/*
-GameKit.postDrawFunctions.push((c)=>{
-    
-})
-*/
-GameKit.mouse.setDrawFunction((x,y,c)=>{
-    c.strokeStyle=(GameKit.mouse.down)?'red':'black'
+
+mouse.setDrawFunction((x,y,c)=>{
+    c.strokeStyle=(mouse.down)?'red':'black'
     c.lineWidth = 3
     c.beginPath()
     c.moveTo(x-5,y-5);
@@ -280,60 +368,42 @@ GameKit.mouse.setDrawFunction((x,y,c)=>{
     c.lineWidth=1;
 });
 
-player.x=0;
-player.y=0;
-g.camera.x-=10
-
-class ScreenFlash extends g.Particle {
+class ScreenFlash extends Particle {
     constructor(duration = 4){
-        super(g.camera.x,g.camera.y,GameKit.canvas.width*2,GameKit.canvas.height*2,'white',duration);
+        super(camera.x,camera.y,canvas.width*2,canvas.height*2,'white',duration);
         this.options.hasBorder=false;
     }
 }
 
-class ScreenFade extends g.Particle {
+class ScreenFade extends Particle {
     constructor(growth, duration, rotation, isRad = false, color = 'white'){
-        super(g.camera.x,g.camera.y,0,0,color, duration)
-        this.change.rotation = new g.Angle(rotation, isRad);
+        super(camera.x,camera.y,0,0,color, duration)
+        this.change.rotation = new Angle(rotation, isRad);
         this.change.width= growth;
         this.change.height = growth;
     }
     onRemove(){
-        player.setPosition(g.camera.x,g.camera.y)
+        player.setPosition(camera.x,camera.y)
     }
 }
 
 
-player.drawLayer = 1;
-let whoah = 8;
-for(let i = -whoah; i < whoah; i++){
-    let s = 50;
-    for(let j = -whoah; j < whoah; j++){
-        var en = new GameKit.RectEnt(i*s+s*.75, j*s+s*.75, s, s, GameKit.Rnd.color()).track()
-        en.drawLayer = 0;
-        en.options.drawStyle = 0;
-        en.pointAt(0,0)
+
+// Creates all the boxes
+(function boxes(){
+    let whoa = 4;
+    for(let i = -whoa; i < whoa; i++){
+        let s = 50;
+        for(let j = -whoa; j < whoa; j++){
+            var en = new RectEnt(i*s+s*.75, j*s+s*.75, s, s, ((i+j) % 2 === 0)?"white":'black').track().borderless()
+            en.drawLayer = 0;
+            en.options.drawStyle = 0;
+        }
     }
-}
+})()
 
 
-function test1(){
-    
-}
-function test2(){
-    
-}
-function test(){
-    console.table(GameKit.timeCompare2(test2,test1))
-    return ;
-}
-GameKit.postDrawFunctions.push((ctx)=>{
-    var v = GameKit.vec2().from(GameKit.mouse);
-    v = v.projOnto(GameKit.pos(1,1)).setLength(100);
-    //new GameKit.Line(0,0,v.x,v.y).draw();
-    return false;
-})
-var center = new class extends GameKit.RectEnt{
+var center = new class extends RectEnt{
     constructor(){
         super(0,0,5,5,'red');
         this.borderless();
@@ -341,12 +411,9 @@ var center = new class extends GameKit.RectEnt{
         this.ow = 5;
     }
     onTick(){
-        this.x = GameKit.camera.x / GameKit.camera.zoom;
-        this.y = GameKit.camera.y / GameKit.camera.zoom;
-        this.width = this.ow / GameKit.camera.zoom
-        this.height = this.oh / GameKit.camera.zoom
-        // this.x = GameKit.canvas.width/2 + GameKit.camera.x;
-        // this.y = GameKit.canvas.height/2 + GameKit.camera.y;
+        this.x = camera.x / camera.zoom;
+        this.y = camera.y / camera.zoom;
+        this.width = this.ow / camera.zoom
+        this.height = this.oh / camera.zoom
     }
 }
-

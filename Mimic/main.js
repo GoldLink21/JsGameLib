@@ -1,11 +1,12 @@
 //#region Init
-
+import * as GameKit from "../gameKit-2.js";
 /**@type Tile[][] */
 var board = [];
 var ui;
 (function init(){
     GameKit.makeCanvas();
-    GameKit.options.backgroundColor='darkgrey';
+    // GameKit.options.backgroundColor='darkgrey';
+    GameKit.setOptions({backgroundColor:"darkgrey"})
     /**Called to get the background color right */
     GameKit.renderSlowCanvas();
     setupUI();
@@ -18,20 +19,20 @@ var ui;
 function setupUI(){
     ui = new GameKit.UI.Component(0,0,70,70,'royalblue');
     GameKit.UI.addComponents(ui);
-    let close = new GameKit.UI.Button(0,5,30,30,'lightgrey','black','black','grey');
-    close.setTextFunction(()=>"Let's Play!")
-    close.setAnchor(GameKit.UI.anchorPositions.BOTTOM);
-    close.setHoverColor("darkgrey");
-    close.setClickFunction(()=>ui.hide());
-    let t1 = new GameKit.UI.Text(0,5,99,20,'royalblue','royalblue');
-    t1.setTextFunction(()=>"You control the black circle");
-    t1.setAnchor(GameKit.UI.anchorPositions.TOP);
-    let t2 = new GameKit.UI.Text(0,65,99,20,'royalblue','royalblue');
-    t2.setTextFunction(()=>"The white circle is mirroring your movements");
-    t2.setAnchor(GameKit.UI.anchorPositions.TOP);
-    let t3 = new GameKit.UI.Text(0,125,99,20,'royalblue','royalblue');
-    t3.setTextFunction(()=>"Try to get both on the flag!");
-    t3.setAnchor(GameKit.UI.anchorPositions.TOP);
+    let close = new GameKit.UI.Button(0,5,30,30,'lightgrey','black','black','grey')
+        .setTextFunction(()=>"Let's Play!")
+        .setAnchor(GameKit.UI.anchorPositions.BOTTOM)
+        .setHoverColor("darkgrey")
+        .setClickFunction(()=>ui.hide());
+    let t1 = new GameKit.UI.Text(0,5,99,20,'royalblue','royalblue')
+        .setTextFunction(()=>"You control the black circle")
+        .setAnchor(GameKit.UI.anchorPositions.TOP);
+    let t2 = new GameKit.UI.Text(0,65,99,20,'royalblue','royalblue')
+        .setTextFunction(()=>"The white circle is mirroring your movements")
+        .setAnchor(GameKit.UI.anchorPositions.TOP);
+    let t3 = new GameKit.UI.Text(0,125,99,20,'royalblue','royalblue')   
+        .setTextFunction(()=>"Try to get both on the flag!")
+        .setAnchor(GameKit.UI.anchorPositions.TOP);
     ui.addChildren(close,t1,t2,t3);
 }
 
@@ -135,7 +136,9 @@ let h = 70;
 let innerOffset = 3;
 
 /**I just offload all the rendering to the postDraw functions because it's a simple game */
-GameKit.postDrawFunctions.push(ctx=>{
+addEventListener(GameKit.EventNames.postDraw,event=>{
+    // console.log(event.detail.ctx)
+    let ctx = event.detail.ctx;
     let ox = board.length * w / 2;
     let oy = board[0].length * h / 2;
     ctx.strokeStyle = 'gray';
@@ -158,7 +161,7 @@ GameKit.postDrawFunctions.push(ctx=>{
             board[i][j].draw(i,j,ctx)
         }
     }
-});
+})
 
 //#endregion Drawing
 
@@ -169,23 +172,23 @@ GameKit.Controls.trackKeys("arrows","r");
 var isPushed = {};
 
 /**Helper for individual controls */
-function handleKey(keyname, func){
-    if(GameKit.Controls.pressed[keyname] && !isPushed[keyname]){
-        isPushed[keyname] = true;
+function handleKey(keyName, func){
+    if(GameKit.Controls.pressed[keyName] && !isPushed[keyName]){
+        isPushed[keyName] = true;
         func();
-    } else if(!GameKit.Controls.pressed[keyname] && isPushed[keyname]){
-        isPushed[keyname] = false;
+    } else if(!GameKit.Controls.pressed[keyName] && isPushed[keyName]){
+        isPushed[keyName] = false;
     }
 }
 
 /** Movement handlers */
-GameKit.onTickFunctions.push(()=>{
+addEventListener(GameKit.EventNames.tick,()=>{
     handleKey('up',()=>movePlayers(dirs.UP));
     handleKey('down',()=>movePlayers(dirs.DOWN));
     handleKey('left',()=>movePlayers(dirs.LEFT));
     handleKey('right',()=>movePlayers(dirs.RIGHT));
     handleKey('r',()=>{maps[curMap]()})
-});
+})
 
 //#endregion Controls
 
@@ -254,9 +257,10 @@ const moves = {
     PIT:2
 }
 
-/**Locates player1 and moves them to whereever you want, acting like they moved in the specified direction */
+/**Locates player1 and moves them to where ever you want, acting like they moved in the specified direction */
 function movePlayer1To(x,y,dir){
     let [p1,] = findPlayers();
+    let nb;
     if(board[x] == undefined || (nb = board[x][y]) == undefined || nb.owner != Tile.own.P1)
         return moves.NO_MOVE;
     if(nb.isEmpty() || (nb.isBox() && moveBox(x,y,dir))){
@@ -283,7 +287,7 @@ function movePlayer2To(x,y,dir){
     }
 }
 
-/**Moves both players a single tile in oposite directions */
+/**Moves both players a single tile in opposite directions */
 function movePlayers(dir){
     let [p1,p2] = findPlayers();
     let m1 = movePlayer1To(...moveD(p1[0],p1[1],dir),dir);
@@ -294,6 +298,7 @@ function movePlayers(dir){
     }
     [p1,p2] = findPlayers();
     if(board[p1[0]][p1[1]].hasFlag && board[p2[0]][p2[1]].hasFlag){
+        // Delay ever so slightly to allow the player graphic to move in
         GameKit.delay(()=> alert("YOU WIN"),10)
     }
 }

@@ -1,3 +1,10 @@
+import * as GameKit from "../gameKit-2.js"
+
+
+// TODO: Add delay before ball launches again
+// TODO: Add lives
+// TODO: Auto generate width of tiles to fill space
+
 GameKit.options.renderRate = 1;
 GameKit.makeCanvas();
 GameKit.options.autoTrackNewEnts = true;
@@ -8,11 +15,26 @@ GameKit.Controls.trackKeys("wasd","arrows","=","-",'0');
 var w = GameKit.canvas.width;
 var h = GameKit.canvas.height;
 
+
+// Constants
+
+/**Tells whether the paddle locks onto the mouse position */
+const USE_MOUSE = false;
+
+const BALL_DEFAULT_SPEED = 2.5;
+/**The speed the ball needs to be going before fire effects appear */
+const BALL_FIRE_SPEED = 5;
+const BALL_SPEED_CHANGE = 0.02;
+
+const PADDLE_DEFAULT_SPEED = 5;
+const PADDLE_WIDTH = 100;
+const PADDLE_HEIGHT = 20;
+
 class Paddle extends GameKit.RectEnt {
     constructor(){
-        super(0,GameKit.canvas.height/2 - 30,100,20,'gray');
+        super(0,GameKit.canvas.height/2 - 30,PADDLE_WIDTH,PADDLE_HEIGHT, 'gray');
         this.x = 0;
-        this.speed = 15 ;
+        this.speed = PADDLE_DEFAULT_SPEED;
     }
     move(){
         if(input['a'] || input["left"]){
@@ -27,20 +49,14 @@ class Paddle extends GameKit.RectEnt {
                 this.x = GameKit.canvas.width/2 - this.width/2;
             }
         }
-        this.x = GameKit.mouse.x;
-        /*
-        if((this.x - this.width/2) < (-GameKit.canvas.width/2)){
-            this.x = -GameKit.canvas.width/2 + this.width/2;
-        }
-        if((this.x + this.width/2) > (GameKit.canvas.width/2)){
-            this.x = GameKit.canvas.width/2 - this.width/2;
-        }*/
+        if(USE_MOUSE)
+            this.x = GameKit.mouse.x;
     }
 }
 class Ball extends GameKit.RectEnt {
     constructor(x,y){
         super(x, y, 6, 6, 'white');
-        this.speed = 3;
+        this.speed = BALL_DEFAULT_SPEED;
         this.options.drawStyle = 1;
         this.rotation.deg = 70;
         this.particles = new GameKit.ParticleSystem(0,0,10,1);
@@ -72,7 +88,7 @@ class Ball extends GameKit.RectEnt {
         //Shift forward p2 by a bit for better detection
         movePointInDir(l.p2,4,this.rotation.rad,true);
 
-        this.rotation.round();
+        this.rotation;
 
         function bounceLeftOrRight(t){
             t.rotation.deg = 180 - t.rotation.deg;
@@ -137,15 +153,15 @@ class Ball extends GameKit.RectEnt {
         }
         //0 = right, 1 = top, 2 = right, 3 = bottom
         if(input["="]){
-            this.speed += 2;
+            this.speed += BALL_SPEED_CHANGE;
         }
         if(input["-"]){
-            this.speed -= 2;
+            this.speed -= BALL_SPEED_CHANGE;
         }
-        if(Math.abs(this.speed) > 15 && !this.particles.active){
+        if(Math.abs(this.speed) > BALL_FIRE_SPEED && !this.particles.active){
             this.particles.forever()
         }
-        if(Math.abs(this.speed) < 15 && this.particles.active){
+        if(Math.abs(this.speed) < BALL_FIRE_SPEED && this.particles.active){
             this.particles.stop();
         }
     }

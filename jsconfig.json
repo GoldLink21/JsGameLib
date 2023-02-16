@@ -3,5 +3,5 @@
       "module": "commonjs",
       "target": "es6"
     },
-    "exclude": ["node_modules","gameKit-2-old.js","Test/*"]
+    "exclude": ["node_modules","gameKit-2-old.js","Test/*","tests.js"]
   }
