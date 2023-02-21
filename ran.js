@@ -23,11 +23,11 @@ addEventListener(GameKit.EventNames.click, event=>{
     console.log(x, y)
 })
 
-options.imageDirectory = "../img/"
+options.imageDirectory = "img/"
 options.defaultImageFileType = ".png"
 
-var player = new RectEnt(0,0, 21,41, 'royalblue').track().
-    setImage('end')
+var player = new RectEnt(0,0, 21,41, 'royalblue')
+    .setImage('end')
 
 player.drawLayer = 1;
 
@@ -43,25 +43,23 @@ let cameraNext = {x:camera.x,y:camera.y};
 let cameraLerpSpeed = 10;
 let curCameraStep = 0;
 
+/**Adjusts the camera by an amount */
 function cameraMove(x,y, speed = 10){
     cameraNext.x += x;
     cameraNext.y += y;
     curCameraStep = 2;
     cameraLerpSpeed = speed;
-    // if(curCameraStep === cameraLerpSpeed)
-    // else 
-        // curCameraStep = cameraLerpSpeed/20
-        //curCameraStep = Math.max(CAMERA_LERP_MAX/10,curCameraStep - 4);
 }
 
+/**Moves the camera to a position */
 function cameraMoveTo(x, y, speed = 10){
-    // curCameraStep = Math.max(1,curCameraStep - 2);
     cameraNext.x = x;
     cameraNext.y = y;
     cameraLerpSpeed = speed + 2;
     curCameraStep = 2;
 }
 
+/**Called every tick */
 function handleControls(){
     let v = vec2(0,0);
     let speed = 5;
@@ -70,11 +68,8 @@ function handleControls(){
     if(c["s"]) v.add(0,1)
     if(c["d"]) v.add(1,0)
     v.scale(speed);
-    player.x += v.x;
-    player.y += v.y;
+    player.position = v.add(player.position);
     if(c["q"] && Math.hypot(player.x - mouse.x, player.y - mouse.y) > player.width) player.moveForward(speed);
-
-    //if(c['r']) player.rotation.deg+=5;
     
     if(c['space']){
         if(wasShoot)
@@ -91,12 +86,11 @@ function handleControls(){
     if(c['left'])   cameraMove(-scale*camera.zoom, 0);
     if(c['right'])  cameraMove(scale*camera.zoom,0);
 
-
-    if(c["="]) camera.zoom = GameKit.Util.clamp(camera.zoom + camera.zoom/scale, 0.5, 5);
-    if(c["-"]) camera.zoom = GameKit.Util.clamp(camera.zoom - camera.zoom/scale, 0.5, 5);
-    if(c['0']) camera.zoom = 1;
+    if(c["="]) camera.zoomPoint(GameKit.Util.clamp(camera.zoom + camera.zoom/scale, 0.5, 5),mouse.x,mouse.y);
+    if(c["-"]) camera.zoomPoint(GameKit.Util.clamp(camera.zoom - camera.zoom/scale, 0.5, 5),mouse.x,mouse.y);
 }
 Controls.addPressOnceEvent("9",()=>cameraMoveTo(0,0, 100))
+Controls.addPressOnceEvent('0',()=>camera.zoom = 1);
 
 // Handle camera lerping
 addEventListener(GameKit.EventNames.tick, ()=>{
@@ -104,38 +98,25 @@ addEventListener(GameKit.EventNames.tick, ()=>{
         camera.position = GameKit.Util.lerp2D(camera.position, cameraNext, (curCameraStep/cameraLerpSpeed));
         curCameraStep++;
     }
-
     // Handle keeping player on screen
     let prp = player.relativePosition;
-    const MOVE_AMOUNT = 20 / camera.zoom;
     const OUTER_RANGE = 0.05;
-    const MOVE_SPEED = 60
+    const MOVE_SPEED = 70
     if(prp.x < GameKit.canvas.width * OUTER_RANGE) {
-        cameraMove(-MOVE_AMOUNT, 0, MOVE_SPEED);
-        // cameraMoveTo(player.x,player.y)
+        // cameraMove(-MOVE_AMOUNT, 0, MOVE_SPEED);
+        cameraMoveTo(player.x,player.y, MOVE_SPEED)
     } else if(prp.x > GameKit.canvas.width * (1 - OUTER_RANGE)) {
-        // cameraMoveTo(player.x,player.y)
-        cameraMove(MOVE_AMOUNT,0, MOVE_SPEED)
+        // cameraMove(MOVE_AMOUNT,0, MOVE_SPEED)
+        cameraMoveTo(player.x,player.y, MOVE_SPEED)
     }
     
     if(prp.y < GameKit.canvas.height * OUTER_RANGE) {
-        cameraMove(0, -MOVE_AMOUNT, MOVE_SPEED);
-        // cameraMoveTo(player.x,player.y)
+        // cameraMove(0, -MOVE_AMOUNT, MOVE_SPEED);
+        cameraMoveTo(player.x,player.y, MOVE_SPEED)
     } else if(prp.y > GameKit.canvas.height * (1 - OUTER_RANGE)) {
-        cameraMove(0, MOVE_AMOUNT, MOVE_SPEED);
-        // cameraMoveTo(player.x,player.y)
+        // cameraMove(0, MOVE_A MOUNT, MOVE_SPEED);
+        cameraMoveTo(player.x,player.y, MOVE_SPEED)
     }
-
-    //if()
-})
-
-
-Controls.addPressOnceEvent("j",()=>{
-    cameraMove(-500,0);
-})
-
-Controls.addPressOnceEvent("k",()=>{
-    cameraMove(500,0);
 })
 
 //Rotation style
@@ -146,13 +127,11 @@ Controls.addPressOnceEvent("r",()=>{
     else
         player.options.drawStyle = 1
 })
-Controls.addPressOnceEvent  ("f",
-    ()=>{
-        console.log('F')
-        new ParticleFire(mouse.pos().x,mouse.pos().y,100)
-    })
-Controls.addUnpressOnceEvent("f",
-    ()=>new ParticleFire(mouse.x,mouse.y,100))
+Controls.addPressOnceEvent  ("f",()=>{
+    console.log('F')
+    new ParticleFire(mouse.pos().x,mouse.pos().y,100)
+})
+Controls.addUnpressOnceEvent("f",()=>new ParticleFire(mouse.x,mouse.y,100))
 
 
 var wasShoot = false;
@@ -162,8 +141,8 @@ var shootCount = new Counter(5, ()=>{
     // @ts-ignore
     p.counter = new Counter(200, ()=>{
         p.toRemove = true
-        new Particle(p.x,p.y,p.width*4,p.height * 4,"red",100,'black')
-            .grow().setChange({deg:360, forward:1}).startRotation(0,360)
+        new Particle(p.x,p.y,p.width*4,p.height * 4,"red",100).borderless()
+            .grow().setChange({deg:360, forward:50, y:-50}).startRotation(0,360)
     });
     // @ts-ignore
     p.speed = Rnd.numRange(5,8);
@@ -234,14 +213,33 @@ class ParticleSmoke extends Particle {
 
 
 class ParticleSystemFire extends ParticleSystem {
+    particlesPerSpawn = 3;
     constructor(x, y, lifeSpan, scale=1){
-        
-        super(x, y, 3, 0.25);
+        super(x, y, 3, 5);
         this.addParticleType(()=>new ParticleFire(10,10,lifeSpan, scale))
-        this.particlesPerSpawn = 3;
         this.pattern.colors = ['red','red','orange','yellow']
     }
 }
+
+class ParticleSystemTornado extends ParticleSystem {
+    constructor(x, y){
+        super(x, y, 30, 1);
+        this.addParticleType(()=>{
+            let p  = new Particle(0,0,15,15,'red',50)
+                .setChange({y:Rnd.intRange(-50,-40),
+                    x:Rnd.intRange(-15,15),forward:Rnd.intRange(40,50),deg:Rnd.intRange(180,360)})
+                .grow()
+                .startRotation(0,359)
+                .colorChoice('grey','darkgrey','lightgrey')
+            p.activeCollision = false;
+            p.drawLayer = 5;
+            return p;
+        });
+        this.particlesPerSpawn = 4;
+    }
+}
+
+let tornado = new ParticleSystemTornado(0,0).forever().setParent(mouse).stop();
 
 var ps = new ParticleSystemFire(415, 275, 32,0.75).setParent(mouse)
 
@@ -296,13 +294,8 @@ addEventListener(GameKit.EventNames.tick,()=>{
                 ps.forever()
             }
         }
-        //if(t.hasMouseHover())
-        //    t.onClick();
-        //ps3.active = false;
     } else {
         ps.active = false;
-        //if(!ps3.active)
-        //    ps3.forever()
         if(clickOffset !== undefined){
             clickOffset = undefined;
         }
@@ -312,13 +305,14 @@ addEventListener(GameKit.EventNames.tick,()=>{
 })
 
 class Torch extends RectEnt{
-    constructor(x, y, burnRate = 0.5) {
+    constructor(x, y, burnRate = 0.5, lightDuration = 15) {
         super(x, y, 10, 100, 'saddlebrown')
         this.burnRate = burnRate;
-        this.minHeight = 51;
-        this.particles = new ParticleSystemFire(this.x,this.y,7,1)
+        this.minHeight = 50;
+        this.particles = new ParticleSystemFire(this.x,this.y,25, 1)
         this.particles.setParent(this,0,-(this.height/2 - this.height/10))
         //this.particles.forever();
+        this.lightDuration = lightDuration;
         this.track();
     }
     burntOut(){
@@ -332,7 +326,7 @@ class Torch extends RectEnt{
         if(mouse.down && !this.particles.active 
             && this.hasMouseHover() && clickOffset === undefined)
         {
-            this.light(15);
+            this.light(this.lightDuration);
         }
         if(this.particles.active){
             if(this.height > this.minHeight) {
@@ -346,7 +340,7 @@ class Torch extends RectEnt{
         }
     }
 }
-var t = new Torch(100,200,0.25)
+var t = new Torch(100,200,0.05, 50)
 
 ps2.stop()
 o.show()
@@ -395,7 +389,7 @@ class ScreenFade extends Particle {
     for(let i = -whoa; i < whoa; i++){
         let s = 50;
         for(let j = -whoa; j < whoa; j++){
-            var en = new RectEnt(i*s+s*.75, j*s+s*.75, s, s, ((i+j) % 2 === 0)?"white":'black').track().borderless()
+            var en = new RectEnt(i*s+s*.75, j*s+s*.75, s, s, ((i+j) % 2 === 0)?"white":'grey').track().borderless()
             en.drawLayer = 0;
             en.options.drawStyle = 0;
         }

@@ -17,6 +17,8 @@
  * TODO Image loading error handling
  * TODO Maybe debug string function to allow writing text simply
  * TODO Fix and test image loading
+ * 
+ * TODO Camera lerping over ticks
  */
 
 /**@type {HTMLCanvasElement} */
@@ -154,16 +156,10 @@ function init() {
         e.preventDefault();
         e.stopPropagation();
         if (options.trackMouse) {
-            //let scalar = Math.sqrt(1/camera.zoom);
-            let actual = localToActual(
+            mouse.position = localToActual(
                 e.pageX - canvas.offsetLeft,
                 e.pageY - canvas.offsetTop
             );
-            mouse.x = actual.x; // / camera.zoom;
-            mouse.y = actual.y; // / camera.zoom;
-            //mouse.position = pos(0,0)
-            //mouse.x = (e.pageX-canvas.offsetLeft - canvas.width/2 + camera.x)*scalar;
-            //mouse.y = (e.pageY-canvas.offsetTop - canvas.height/2 + camera.y)*scalar;
         }
     });
     window.addEventListener("resize", (e) => {
@@ -177,7 +173,9 @@ function init() {
     document.addEventListener("mousedown", (e) => {
         e.preventDefault();
         e.stopPropagation();
-
+        if(ENABLE_EVENTS && options.trackMouse) {
+            dispatchEvent(clickEvent)
+        }
         mouse.down = !options.trackMouse ? false : true;
     });
     document.body.addEventListener("mouseup", (e) => {
@@ -195,9 +193,7 @@ function init() {
         }
         clickEvent.detail.x = mouse.x;
         clickEvent.detail.y = mouse.y;
-        if(ENABLE_EVENTS) {
-            dispatchEvent(clickEvent)
-        }
+        
         onClickEvent();
     });
     document.body.addEventListener("keydown", (e) => {
@@ -330,6 +326,7 @@ export let resizeCanvas = throttle(() => {
  * Class that works as a rectangular base with rotations and collision detection. Center based positioning.
  * Basic blocks of the engine
  * DON'T FORGET TO TRACK ALL YOUR ENTS AFTER MAKING THEM!
+ * TODO: Remove borderColor from constructor
  */
 export class RectEnt {
     /**@type {number} */
@@ -393,6 +390,7 @@ export class RectEnt {
         this.options.imageBorder = false;
         return this;
     }
+    /**@param {string} src the source of the image without the file extension */
     setImage(src) {
         //Image already loaded
         if (!(src + options.defaultImageFileType in images)) {
@@ -801,6 +799,11 @@ export class Particle extends RectEnt {
         ).deg;
         return this;
     }
+    /**Sets change in rotation to be based on the lifespan of the particle */
+    rotateOverLifespan(ang, isRad = false){
+        this.change.rotation = new Angle(ang/this.lifeSpan, isRad);
+        return this;
+    }
     /** Controls the current change per tick */
     change = {
         height: 0,
@@ -822,7 +825,7 @@ export class Particle extends RectEnt {
         this.width += this.change.width * deltaTime;
         this.height += this.change.height * deltaTime;
         //TODO: Should this be divided by it's lifespan??
-        this.rotation.rad += this.change.rotation.rad * deltaTime;
+        this.rotation.rad += (this.change.rotation.rad * deltaTime);
         this.x += this.change.x * deltaTime;
         this.y += this.change.y * deltaTime;
         if (this.change.forward != 0)
@@ -858,7 +861,7 @@ export class ParticleSystem {
         /**@type {Array.<function():Particle>} */
         this.particleChoices = []; //
         /**The engine behind spawning all the particles on time */
-        this.particleSpawnCounter = new Counter(ticksPerParticle, () => {
+        this.particleSpawnCounter = new Counter(ticksPerParticle * deltaTime, () => {
             //Arrow function here allows this to be the System
             if (this.parent != undefined) {
                 for (let i = 0; i < this.particlesPerSpawn; i++)
@@ -908,7 +911,12 @@ export class ParticleSystem {
         /**@type {number[]} The size multiplier to apply to a particle. 1 means normal size */
         size: [],
     };
-    setPattern({ particleChoice, deg, rad, colors, size }) {
+    /**
+     * 
+     * @param {{[particleChoice]:(()=>Particle)[], [deg]:number[],[rad]:number[],[colors]:string[],[size]:number[]}} param0 
+     * @returns 
+     */
+    setPattern({ particleChoice, deg, rad, colors, size } = {}) {
         if (particleChoice) {
             this.pattern.particleChoice = particleChoice;
         }
@@ -982,6 +990,7 @@ export class ParticleSystem {
         this.y = y;
         return this;
     }
+    /**Starts as if it hasn't spawned anything yet */
     start() {
         this.particlesSpawned = 0;
         this.particlesToSpawn = this.initialParticleCount;
@@ -991,8 +1000,10 @@ export class ParticleSystem {
     stop() {
         this.active = false;
     }
+    /**Handles updating the counters */
     onTick() {
         if (this.active && this.particlesToSpawn > 0) {
+            // Updates by deltaTime to make it more consistent at different renderRates
             this.particleSpawnCounter.count(deltaTime);
         }
     }
@@ -1005,130 +1016,143 @@ export class ParticleSystem {
             this.particlesToSpawn,
             this.ticksPerParticle
         );
-        ns.initialParticleCount = this.initialParticleCount;
-        ns.pattern.colors = this.pattern.colors.slice();
-        ns.pattern.particleChoice = this.pattern.particleChoice;
-        ns.pattern.rotation.rad = this.pattern.rotation.rad;
-        ns.pattern.size = this.pattern.size.slice();
-        ns.particleChoices = this.particleChoices.slice();
-        ns.particlesPerSpawn = this.particlesPerSpawn;
-        ns.doRemoveWhenDone = this.doRemoveWhenDone;
+        ns.initialParticleCount     = this.initialParticleCount;
+        ns.pattern.colors           = this.pattern.colors.slice();
+        ns.pattern.particleChoice   = this.pattern.particleChoice;
+        ns.pattern.rotation.rad     = this.pattern.rotation.rad;
+        ns.pattern.size             = this.pattern.size.slice();
+        ns.particleChoices          = this.particleChoices.slice();
+        ns.particlesPerSpawn        = this.particlesPerSpawn;
+        ns.doRemoveWhenDone         = this.doRemoveWhenDone;
     }
 }
 
 /**@type {ParticleSystem[]} */
 export let particleSystems = [];
-/**
- * Returns a simple position object
- * @param {number} x
- * @param {number} y
- */
-export function pos(x=0, y=0) {
-    return {
-        x: x,
-        y: y,
-        toString: function () {
-            return `{${this.x},${this.y}}`;
-        },
-        roundString : function(){
-            return `{${Math.round(this.x)},${Math.round(this.y)}}`
-        },
-        from(obj){
-            this.x = obj.x;
-            this.y = obj.y;
-            return this;
+
+class Pos {
+    /**
+     * Returns a simple position object
+    * @param {number} x
+    * @param {number} y
+    */
+    constructor(x=0, y=0){
+        this.x = x;
+        this.y = y;
+    }
+    toString() {
+        return `{${this.x},${this.y}}`;
+    }
+    roundString(){
+        return `{${Math.round(this.x)},${Math.round(this.y)}}`
+    }
+    /**@param {{x:number,y:number}} point */
+    from(obj){
+        this.x = obj.x;
+        this.y = obj.y;
+        return this;
+    }
+    /**@param {number} x @param {number} y */
+    set(x, y) {
+        this.x = x;
+        this.y = y;
+        return this;
+    }
+    /** Tells if this vec2 is at the specified location */
+    is(x, y){
+        if(typeof x === 'number'){
+            return (this.x === x) && (y === undefined || this.y === y);
+        } else {
+            return this.x === x.x && this.y === x.y;
         }
-    };
+    }
+    copy(){
+        return new Pos(this.x,this.y);
+    }
 }
 
-/**Simple x and y obj with dot and move functionality */
-export function vec2(/** @type {number} */ x, /** @type {number} */ y) {
-    return {
-        x: x,
-        y: y,
-        /**@param {{x:number,y:number}} other @returns {number} dot product of the two */
-        dot(other) {
-            return this.x * other.x + this.y * other.y;
-        },
-        /**@param {number} x @param {number} y */
-        set(x, y) {
-            this.x = x;
-            this.y = y;
-            return this;
-        },
-        /**@param {{x:number,y:number}} point */
-        from(point) {
-            this.x = point.x;
-            this.y = point.y;
-            return this;
-        },
-        /**@param {{x:number,y:number}|number} other @param {number} [y] Adds to this vec2's values */
-        add(other = 0, y = 0) {
-            if (typeof other === "object") {
-                this.x += other.x;
-                this.y += other.y;
-            } else {
-                this.x += other;
-                this.y += y;
-            }
-            return this;
-        },
-        /**Flips this vec2's x and y */
-        flip() {
-            this.x = -this.x;
-            this.y = -this.y;
-            return this;
-        },
-        /**Scales this instance of vec2 */
-        scale(scalar = 1) {
-            this.x *= scalar;
-            this.y *= scalar;
-            return this;
-        },
-        /**Gets a new instance of vec2 that is scaled */
-        scaled(scalar = 1) {
-            return vec2(this.x * scalar, this.y * scalar);
-        },
-        length() {
-            return Math.hypot(this.x, this.y);
-        },
-        /**@param {number} val Scales the current vec2 to the specified len */
-        setLength(val) {
-            if (this.length() !== 0) this.scale(val / this.length());
-            return this;
-        },
-        /**@param {{x:number,y:number}} other returns a new vec2 of the projection */
-        projOnto(other) {
-            var s = this.dot(other) / (other.x * other.x + other.y * other.y);
-            return vec2(other.x * s, other.y * s);
-        },
-        copy() {
-            return vec2(this.x, this.y);
-        },
-        /**Converts the vector into an angle on GameKit's basis */
-        toAngle() {
-            return new Angle(-Math.atan2(this.x, this.y) + Math.PI / 2, true);
-        },
-        toString() {
-            return `{${this.x}, ${this.y}}`;
-        },
-        normalize() {
-            if (this.length() == 0) return this;
-            return this.scale(1 / this.length());
-        },
-        normalized() {
-            if (this.length() == 0) return this.copy();
-            return this.scaled(1 / this.length());
-        },
-        /** Tells if this vec2 is at the specified location */
-        is(x, y){
-            if(typeof x === 'number'){
-                return (this.x === x) && (y === undefined || this.y === y);
-            } else {
-                return this.x === x.x && this.y === x.y;
-            }
+export function pos(x=0, y=0) {
+    return new Pos(x, y);
+}
+
+/*Pulled out as its own class for efficiency */
+class Vec2 extends Pos {
+    /**
+     * Improved pos for math operations
+     * @param {number} x 
+     * @param {number} y 
+     */
+    constructor(x, y){
+        super(x, y);
+    }
+    /**@param {{x:number,y:number}} other @returns {number} dot product of the two */
+    dot(other) {
+        return this.x * other.x + this.y * other.y;
+    }
+    /**@param {{x:number,y:number}|number} other @param {number} [y] Adds to this vec2's values */
+    add(other = 0, y = 0) {
+        if (typeof other === "object") {
+            this.x += other.x;
+            this.y += other.y;
+        } else {
+            this.x += other;
+            this.y += y;
         }
-    };
+        return this;
+    }
+    /**Flips this vec2's x and y */
+    flip() {
+        this.x = -this.x;
+        this.y = -this.y;
+        return this;
+    }
+    /**Scales this instance of vec2 */
+    scale(scalar = 1) {
+        this.x *= scalar;
+        this.y *= scalar;
+        return this;
+    }
+    /**Gets a new instance of vec2 that is scaled */
+    scaled(scalar = 1) {
+        return vec2(this.x * scalar, this.y * scalar);
+    }
+    length() {
+        return Math.hypot(this.x, this.y);
+    }
+    /**@param {number} val Scales the current vec2 to the specified len */
+    setLength(val) {
+        if (this.length() !== 0) this.scale(val / this.length());
+        return this;
+    }
+    /**@param {{x:number,y:number}} other returns a new vec2 of the projection */
+    projOnto(other) {
+        var s = this.dot(other) / (other.x * other.x + other.y * other.y);
+        return vec2(other.x * s, other.y * s);
+    }
+    copy() {
+        return new Vec2(this.x, this.y);
+    }
+    /**Converts the vector into an angle on GameKit's basis */
+    toAngle() {
+        return new Angle(-Math.atan2(this.x, this.y) + Math.PI / 2, true);
+    }
+    toString() {
+        return `{${this.x}, ${this.y}}`;
+    }
+    /**Scales the vector to be length 1 */
+    normalize() {
+        if (this.length() == 0) return this;
+        return this.scale(1 / this.length());
+    }
+    normalized() {
+        if (this.length() == 0) return this.copy();
+        return this.scaled(1 / this.length());
+    }
+}
+
+/**Simple x and y obj with many math functions */
+export function vec2(x = 0, y = 0) {
+    return new Vec2(x, y);
 }
 
 /**Useful for seeing if there was a collision between a moving point and a solid line */
@@ -1333,13 +1357,14 @@ export class Range {
 }
 
 /**
- * A disjoint range. Can
+ * A disjoint range. All end values are non-inclusive
  */
 export class DisjointRange {
     constructor() {
         /**@type {Range[]} */
         this.ranges = [];
     }
+    /**Takes all ranges in this and compresses them into as few ranges it can */
     condense() {
         // Double loop seems bad, but the ranges used with this
         //  will likely never need more than two or three ranges
@@ -1384,7 +1409,7 @@ export class DisjointRange {
     }
 
     /**
-     *
+     * Adds a range to this. Can be a Range object or an (start, end) pair
      * @param {Range|number} rng
      * @param {number} [end]
      */
@@ -1429,9 +1454,7 @@ export class Counter {
      */
     constructor(max, onComplete = () => {}) {
         if (max <= 0)
-            throw new RangeError(
-                "Max count must be positive and greater than 0"
-            );
+            throw new RangeError("Max count must be positive and greater than 0");
         this.#max = max;
         this.#cur = 0;
         this.onComplete = onComplete;
@@ -1449,6 +1472,7 @@ export class Counter {
     }
     set cur(val) {
         this.#cur = val;
+        // Can trigger multiple times if updated past the max
         while (this.#cur >= this.#max) {
             this.#cur -= this.#max;
             this.onComplete();
@@ -1456,9 +1480,7 @@ export class Counter {
     }
     set max(val) {
         if (val <= 0)
-            throw new RangeError(
-                "Max count must be positive and greater than 0"
-            );
+            throw new RangeError("Max count must be positive and greater than 0");
         this.#max = val;
         this.cur = this.cur;
     }
@@ -1474,10 +1496,7 @@ export class Counter {
 export let Rnd = {
     /**@returns {string} Hex value from 000000 to ffffff preceded by a # */
     color: () =>
-        "#" +
-        ("000000" + Math.floor(Math.random() * 16581375).toString(16)).slice(
-            -6
-        ),
+        "#" + ("000000" + Math.floor(Math.random() * 16581375).toString(16)).slice(-6),
     /**@returns {number} a number from [0-2pi) */
     rad: () => Math.random() * 2 * Math.PI,
     /**@returns {number} a number from [0-360) */
@@ -1526,14 +1545,16 @@ export let camera = (function () {
             return _x;
         },
         set x(val) {
-            mouse.x += (val - _x)// / _zoom;
+            // Updates mouse position
+            mouse.x += (val - _x) / _zoom
             _x = val;
         },
         get y() {
             return _y;
         },
         set y(val) {
-            mouse.y += (val - _y)// / _zoom;
+            // Updates mouse position
+            mouse.y += (val - _y) / _zoom
             _y = val;
         },
         /**@param {{x:number,y:number}} obj */
@@ -1547,6 +1568,10 @@ export let camera = (function () {
         get zoom() {
             return _zoom;
         },
+        /**
+         * The value of the zoom.
+         * Updating it will zoom in on the center of the screen
+         */
         set zoom(val) {
             //Zoom point should be camera.position
             var scaleChange = val - _zoom;
@@ -1561,6 +1586,26 @@ export let camera = (function () {
             camera.x += ox;
             camera.y += oy;
         },
+        /**
+         * Zooms in on a specific point instead of the center of the camera
+         * @param {number} val 
+         * @param {number} x 
+         * @param {number} y 
+         */
+        zoomPoint(val, x, y){
+            var scaleChange = val - _zoom;
+            //Zoom point should be camera.position
+            var ox = (x / _zoom) * scaleChange;
+            var oy = (y / _zoom) * scaleChange;
+
+            mouse.x = mouse.x * _zoom / val;
+            mouse.y = mouse.y * _zoom / val
+
+            _zoom = val;
+
+            camera.x += ox;
+            camera.y += oy;
+        }
     };
 })();
 
@@ -1573,10 +1618,11 @@ export function relativePositionToCamera(x, y) {
         (x*camera.zoom)-(camera.x) + canvas.width/2,
         (y*camera.zoom)-(camera.y) + canvas.height/2
     ); 
-    return vec2(
-        canvas.width / 2 + (camera.x + x),
-        canvas.height / 2 + (camera.y + y)
-    );
+    // Here in case I broke something
+    // return vec2(
+        // canvas.width / 2 + (camera.x + x),
+        // canvas.height / 2 + (camera.y + y)
+    // );
 }
 
 /**Takes a relative position and makes it into an absolute. Think mouse or UI */
@@ -1850,6 +1896,22 @@ export let Controls = new (class Controls {
             };
         else this.#keyEvents[key].unpressFunc = event;
     }
+    /**
+     * Removes the on press event attached by the `addPressOnceEvent(key)`
+     * @param {string} key 
+     */
+    removePressEvent(key){
+        if(this.#keyEvents[key])
+            this.#keyEvents[key].pressFunc = null;
+    }
+    /**
+     * Removes the on Unpress event attached by the `addUnpressEvent(key)`
+     * @param {string} key 
+     */
+    removeUnpressEvent(key){
+        if(this.#keyEvents[key])
+            this.#keyEvents[key].unpressFunc = null;
+    }
 })();
 
 /**Handles all things relating to the mouse. Is an extension of RectEnt to allow easy collision checking */
@@ -1863,7 +1925,7 @@ export let mouse = new (class Mouse extends RectEnt {
     }
     /**
      * TODO: Currently broken when using camera.zoom != 1
-     * @param {function(number,number,CanvasRenderingContext2D):void} func 
+     * @param {(x:number,y:number,c:CanvasRenderingContext2D)=>void} func 
      */
     setDrawFunction(func, hideCursor = true) {
         this.#drawFunction = func;
